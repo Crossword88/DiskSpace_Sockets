@@ -40,30 +40,57 @@ bool WsaInitialization()
 	return true;
 }
 
-bool SetupSocketAddress(SOCKADDR_IN* SockAddr)
+bool SocketSetUpUDP(SOCKET* SockConnectionUDP, SOCKADDR_IN* SockAddr)
 {
-	SockAddr->sin_port = htons(port);
-	SockAddr->sin_family = AF_INET;
-	in_addr addr;
-	if (inet_pton(AF_INET, LocalHost, &addr) <= 0)
-	{
-		std::cout << "Error to convert IPv4 address\n";
+	// Create UDP socket
+	*SockConnectionUDP = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	if (*SockConnectionUDP == INVALID_SOCKET) {
+		std::cerr << "Error creating socket: " << WSAGetLastError() << std::endl;
+		WSACleanup();
 		return false;
 	}
-	SockAddr->sin_addr = addr;
+
+	// Client address
+	memset((char*)SockAddr, 0, sizeof(SockAddr));
+	SockAddr->sin_family = AF_INET;
+	SockAddr->sin_port = htons(port); // Example port number
+	SockAddr->sin_addr.s_addr = INADDR_ANY;
+	if (bind(*SockConnectionUDP, (sockaddr*)SockAddr, sizeof(*SockAddr)) == SOCKET_ERROR) {
+		std::cerr << "Binding failed with error: " << WSAGetLastError() << std::endl;
+		closesocket(*SockConnectionUDP);
+		WSACleanup();
+		return false;
+	}
+
+	in_addr addr;
+	if (inet_pton(AF_INET, LocalHost, &addr) <= 0)
+		return false;
+
 	return true;
 }
 
-std::string GetDirectoryNameFromSocket(SOCKET newConnection)
+std::string GetDirectoryNameFromSocket(SOCKET SockConnectUDP, SOCKADDR_IN& SockAddr)
 {
+	int SockAddrSize = sizeof(SockAddr);
 	char disk;
-	recv(newConnection, &disk, sizeof(char), 0);
+	recvfrom(SockConnectUDP, &disk, sizeof(char), 0, (sockaddr*)&SockAddr, &SockAddrSize);
 
 	std::string diskName = "";
 	diskName += disk;
 	diskName += ':';
 
 	return diskName;
+}
+
+bool SendingDiskSpaceUDP(diskData diskSpace, SOCKET SockConnectUDP, SOCKADDR_IN SockAddr)
+{
+	int sendBytes = sendto(SockConnectUDP, reinterpret_cast<char*>(&diskSpace), sizeof(diskData), 0, (sockaddr*)&SockAddr, sizeof(SockAddr));
+	if (sendBytes != sizeof(diskData))
+	{
+		std::cout << "Data has sended not correctly\n";
+		return false;
+	}
+	return true;
 }
 
 diskData GetDiskSpace(std::string diskName)
@@ -76,40 +103,4 @@ diskData GetDiskSpace(std::string diskName)
 	diskData diskInfo(totalBytes.QuadPart - freeBytes.QuadPart, freeBytes.QuadPart, totalBytes.QuadPart);
 
 	return diskInfo;
-}
-
-bool BindingSocket(SOCKET *sListen, SOCKADDR_IN *SockAddr, int addrSize)
-{
-	if (bind(*sListen, (SOCKADDR*)SockAddr, addrSize) != 0)
-	{
-		std::cout << "Error to bind address to socket\n";
-		return false;
-	}
-
-	if (listen(*sListen, SOMAXCONN) != 0)
-	{
-		std::cout << "Error to listen socket\n";
-		return true;
-	}
-
-	return true;
-}
-
-SOCKET SocketConnectingToClient(SOCKET sListen, int addrSize)
-{
-	SOCKET SockConnection = 0;
-	sockaddr_in clientInfo;
-	std::cout << "Waiting Connection\n";
-	SockConnection = accept(sListen, (SOCKADDR*)&clientInfo, &addrSize);
-
-	if (SockConnection == 0)
-	{
-		std::cout << "Error connecting to server\n";
-		return 0;
-	}
-
-	system("cls");
-	std::cout << "Connected\n";
-
-	return SockConnection;
 }

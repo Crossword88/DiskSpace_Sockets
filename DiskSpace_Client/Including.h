@@ -38,42 +38,59 @@ bool WsaInitialization()
 	return true;
 }
 
-bool SetupSocketAddress(SOCKADDR_IN* SockAddr)
+bool SocketCreateUDP(SOCKET* SockConnectionUDP)
 {
-	SockAddr->sin_port = htons(port);
-	SockAddr->sin_family = AF_INET;
+	// Create UDP socket
+	*SockConnectionUDP = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	if (*SockConnectionUDP == INVALID_SOCKET) {
+		std::cerr << "Error creating socket: " << WSAGetLastError() << std::endl;
+		WSACleanup();
+		return false;
+	}
+	return true;
+}
+
+bool ClientBindingSocketUDP(SOCKET* SockConnectionUDP, SOCKADDR_IN* SockAddr)
+{
+	// Bind the socket to Send
 	in_addr addr;
 	if (inet_pton(AF_INET, LocalHost, &addr) <= 0)
 	{
 		std::cout << "Error to convert IPv4 address\n";
 		return false;
 	}
-	SockAddr->sin_addr = addr;
+
+	SockAddr->sin_family = AF_INET;
+	SockAddr->sin_port = htons(port); // Example port number
+	SockAddr->sin_addr = addr; // Example server IP address
+
 	return true;
 }
 
-bool SockConnecting(SOCKET *ServConnect, SOCKADDR_IN SockAddr, int addrSize)
+bool SendDriveLetter(SOCKET SockConnectUDP, SOCKADDR_IN& SockAddr)
 {
-	*ServConnect = socket(AF_INET, SOCK_STREAM, 0);
-	if (connect(*ServConnect, (SOCKADDR*)&SockAddr, addrSize) != 0)
+	char diskLetter;
+	std::cout << "Information of wich disk you'd like to see?\n";
+	std::cin >> diskLetter;
+	int sended = sendto(SockConnectUDP, &diskLetter, sizeof(char), 0, (sockaddr*)&SockAddr, sizeof(SockAddr));
+	if (sended != sizeof(char))
 	{
-		std::cout << "Error conecting to Server\n";
+		std::cout << "Data has sended not correctly\n";
 		return false;
 	}
 	return true;
 }
 
-void SendDriveLetter(SOCKET ServConnect)
+diskData ReceiveDriveData(SOCKET SockConnectionUDP, sockaddr_in SockAddr, int SockAddrSize)
 {
-	char diskLetter;
-	std::cout << "Information of wich disk you'd like to see?\n";
-	std::cin >> diskLetter;
-	send(ServConnect, &diskLetter, sizeof(char), 0);
+	diskData data(0, 0, 0);
+	recvfrom(SockConnectionUDP, reinterpret_cast<char*>(&data), sizeof(diskData), 0, (sockaddr*)&SockAddr, &SockAddrSize);
+	return data;
 }
 
 void ShowDiskSpace(diskData diskInfo)
 {
-	std::cout << "\nTotal disk space(Mb): " << diskInfo.totalSpace / 1024 / 1024 << std::endl;
+	std::cout << "Total disk space(Mb): " << diskInfo.totalSpace / 1024 / 1024 << std::endl;
 	std::cout << "Free disk space(Mb): " << diskInfo.freeSpace / 1024 / 1024 << std::endl;
-	std::cout << "Using disk space(Mb): " << diskInfo.usingSpace / 1024 / 1024 << std::endl;
+	std::cout << "Using disk space(Mb): " << diskInfo.usingSpace / 1024 / 1024 << "\n\n";
 }

@@ -8,36 +8,25 @@ int main()
 	}
 
 	sockaddr_in SockAddr;
-	if (!SetupSocketAddress(&SockAddr))
+	int SockAddrSize = sizeof(SockAddr);
+	SOCKET SockConnectionUDP;
+
+	if (!SocketSetUpUDP(&SockConnectionUDP, &SockAddr)) return -1;
+
+	while (true)
 	{
-		return -1;
-	}
-	int addrSize = sizeof(SockAddr);
+		std::string diskName = GetDirectoryNameFromSocket(SockConnectionUDP, SockAddr);
+		std::cout << diskName << std::endl;
 
-	SOCKET sListen = socket(AF_INET, SOCK_STREAM, 0);
+		diskData diskSpace = GetDiskSpace(diskName);
 
-	if (!BindingSocket(&sListen, &SockAddr, addrSize))
-	{
-		return -1;
-	}
+		std::cout << diskSpace.freeSpace /1024/1024<< std::endl;
+		std::cout << diskSpace.totalSpace /1024/1024<< std::endl;
+		std::cout << diskSpace.usingSpace /1024/1024<< std::endl;
 
-	SOCKET SocketConnection = SocketConnectingToClient(sListen, addrSize);
-
-	std::string diskName = GetDirectoryNameFromSocket(SocketConnection);
-	std::cout << diskName << std::endl;
-	
-	/*std::cout << x.QuadPart /1024/1024<< std::endl;
-	std::cout << y.QuadPart /1024/1024<< std::endl;
-	std::cout << (y.QuadPart - x.QuadPart) /1024/1024<< std::endl;*/
-
-	diskData diskSpace = GetDiskSpace(diskName);
-
-	int sendBytes = send(SocketConnection, reinterpret_cast<char*>(&diskSpace), sizeof(diskData), 0);
-	if (sendBytes != sizeof(diskData))
-	{
-		std::cout << "Data has sended not correctly\n";
-		return -1;
+		if (!SendingDiskSpaceUDP(diskSpace, SockConnectionUDP, SockAddr)) break;
 	}
 
+	WSACleanup();
 	return 0;
 }

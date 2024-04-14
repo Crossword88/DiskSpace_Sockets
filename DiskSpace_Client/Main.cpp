@@ -2,28 +2,22 @@
 
 int main()
 {
-	if (!WsaInitialization())
-	{
-		return -1;
-	}
-
 	sockaddr_in SockAddr;
-	if (!SetupSocketAddress(&SockAddr))
+	SOCKET SockConnectionUDP;
+	int SockAddrSize = sizeof(SockAddr);
+
+	if (!WsaInitialization())	return -1;
+	if (!SocketCreateUDP(&SockConnectionUDP))	return -1;
+	if (!ClientBindingSocketUDP(&SockConnectionUDP, &SockAddr))	return -1;
+
+	while (true)
 	{
-		return -1;
-	}
-	int addrSize = sizeof(SockAddr);
+		if(!SendDriveLetter(SockConnectionUDP, SockAddr)) break;
+		diskData diskInfo = ReceiveDriveData(SockConnectionUDP, SockAddr, SockAddrSize);
 
-	SOCKET ServConnect;
-	if (!SockConnecting(&ServConnect, SockAddr, addrSize))
-	{
-		return -1;
+		ShowDiskSpace(diskInfo);
 	}
 
-	SendDriveLetter(ServConnect);
-
-	diskData diskInfo(0,0,0);
-	recv(ServConnect, reinterpret_cast<char*>(&diskInfo), sizeof(diskData), 0);
-
-	ShowDiskSpace(diskInfo);
+	WSACleanup();
+	return 0;
 }
